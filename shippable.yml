@@ -1,0 +1,53 @@
+language: none
+
+runtime:
+    nodePool: shippable_shared_aarch64
+    # nodePool: shippable_shared_aarch32
+
+env:
+  global:
+  
+  matrix:
+    - CONFIG=linux_
+
+
+build:
+  pre_ci_boot:
+    image_name: arm64v8/ubuntu
+    image_tag: 18.04
+    pull: True
+
+  ci:
+    # Need to install bzip2 for conda
+    - apt-get update
+    # bzip2 is necessary for conda installers to get executed
+    # curl is necessary to download them
+    - apt-get install -y bzip2 curl locales
+    # instaslling locales reduces many warnings
+    - locale-gen en_US.UTF-8
+    - curl -L -O https://github.com/Archiconda/build-tools/releases/download/0.1.1/Archiconda3-0.1.1-Linux-aarch64.sh
+    - bash Archiconda3-*.sh -b
+    - source /root/archiconda3/bin/activate root
+    - conda --version
+    - conda update conda --yes
+    - conda --version
+    - conda install conda-build anaconda-client --yes
+    - conda config --show
+    # For noarch packages
+    # But for now, they all crash
+    # - conda config --add channels conda-forge
+    - conda config --add channels archiarm
+    - conda build -m .ci_support/${CONFIG}.yaml .
+    - export PACKAGE_NAME=`conda build -m .ci_support/${CONFIG}.yaml . --output`
+    - if [[ "$BINSTAR_TOKEN" != "" ]]; then anaconda -t $BINSTAR_TOKEN upload $PACKAGE_NAME ; else echo "BINSTAR_TOKEN not found, package is not being uploaded" ; fi
+
+# disable email notification
+# of CI job result
+integrations:
+  notifications:
+    - integrationName: email
+      type: email
+      on_success: never
+      on_failure: never
+      on_cancel: never
+      on_pull_request: never
